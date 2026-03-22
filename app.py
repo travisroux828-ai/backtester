@@ -26,7 +26,10 @@ st.title("Day Trading Backtester")
 st.sidebar.header("Configuration")
 
 # API Key - reads from Streamlit secrets, with fallback to manual entry
-default_key = st.secrets.get("POLYGON_API_KEY", "")
+try:
+    default_key = st.secrets["POLYGON_API_KEY"]
+except (KeyError, FileNotFoundError):
+    default_key = ""
 api_key = st.sidebar.text_input(
     "Polygon API Key",
     value=default_key,
