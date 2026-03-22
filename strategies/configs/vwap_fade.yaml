@@ -1,0 +1,29 @@
+name: "VWAP Fade (Config)"
+description: "Mean reversion short when price extends far above VWAP. Targets VWAP as profit level."
+
+entry_window:
+  start: "09:45"
+  end: "15:00"
+
+entry_conditions:
+  - indicator: dist_from_vwap
+    operator: ">"
+    value: 3.0
+  - indicator: rsi_14
+    operator: ">"
+    value: 65
+
+direction: short
+
+stop:
+  type: atr_multiple
+  value: 2.0
+
+target:
+  type: fixed_level
+  reference: vwap
+
+position_sizing:
+  type: fixed_shares
+  shares: 100
+  max_shares: 5000

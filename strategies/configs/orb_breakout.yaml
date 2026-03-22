@@ -1,0 +1,32 @@
+name: "ORB Breakout (Config)"
+description: "Opening range breakout - config version. Enters when price breaks above/below 5-min ORB with volume confirmation."
+
+entry_window:
+  start: "09:35"
+  end: "11:30"
+
+entry_conditions:
+  - indicator: price
+    operator: ">"
+    reference: orb_high
+  - indicator: volume_ratio
+    operator: ">"
+    value: 1.5
+  - indicator: rsi_14
+    operator: "<"
+    value: 75
+
+direction: long
+
+stop:
+  type: fixed_level
+  reference: orb_low
+
+target:
+  type: risk_multiple
+  value: 2.0
+
+position_sizing:
+  type: fixed_shares
+  shares: 100
+  max_shares: 5000

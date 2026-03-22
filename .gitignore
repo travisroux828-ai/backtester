@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Streamlit secrets (contains API key)
+.streamlit/secrets.toml
+
+# IDE
+.idea/
+.vscode/
+
+# Claude
+.claude/
+
+# Cached API data
+data/cache/
+
+# Personal trading data
+*.csv
+
+# OS
+.DS_Store
