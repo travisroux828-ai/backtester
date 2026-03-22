@@ -4,6 +4,8 @@ Technical indicators for backtesting. All operate on Polygon minute bar DataFram
 Expected columns: o (open), h (high), l (low), c (close), v (volume), vw (vwap), dt (datetime)
 """
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 

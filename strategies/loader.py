@@ -2,6 +2,8 @@
 Strategy loader - auto-discovers strategies from YAML configs and Python files.
 """
 
+from __future__ import annotations
+
 import importlib
 import os
 import sys

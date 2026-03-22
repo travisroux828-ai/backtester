@@ -2,6 +2,8 @@
 Config-based strategy that interprets YAML strategy definitions at runtime.
 """
 
+from __future__ import annotations
+
 import pandas as pd
 
 from engine.models import Signal, Position

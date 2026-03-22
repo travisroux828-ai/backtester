@@ -2,6 +2,8 @@
 Portfolio and position management for backtesting.
 """
 
+from __future__ import annotations
+
 from engine.models import Position, Trade, Signal
 
 

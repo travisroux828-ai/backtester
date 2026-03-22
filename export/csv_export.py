@@ -2,6 +2,8 @@
 CSV export for backtest results - designed for TradingView chart review.
 """
 
+from __future__ import annotations
+
 import csv
 import io
 

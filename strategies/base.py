@@ -2,6 +2,8 @@
 Abstract base class for all backtest strategies.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 
 import pandas as pd

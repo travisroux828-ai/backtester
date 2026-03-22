@@ -4,6 +4,8 @@ Backtester Dashboard - Streamlit web interface for day trading backtesting.
 Run with: streamlit run app.py
 """
 
+from __future__ import annotations
+
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px

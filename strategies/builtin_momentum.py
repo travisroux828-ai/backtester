@@ -9,6 +9,8 @@ Logic:
 5. Target at 2:1 risk/reward.
 """
 
+from __future__ import annotations
+
 import pandas as pd
 
 from engine.models import Signal, Position

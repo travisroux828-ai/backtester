@@ -6,6 +6,8 @@ then filters by price/volume. For float/market cap, fetches ticker
 details only for candidates that pass the initial filters.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import time

@@ -2,6 +2,8 @@
 Core backtesting simulation loop.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 
 import pandas as pd

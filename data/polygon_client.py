@@ -2,6 +2,8 @@
 Polygon.io API client with disk caching for trade enrichment and backtesting.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import time
