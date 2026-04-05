@@ -66,7 +66,7 @@ class PolygonClient:
                 results = json.load(f)
             bars = pd.DataFrame(results)
             bars["dt"] = pd.to_datetime(bars["t"], unit="ms", utc=True)
-            bars["dt"] = bars["dt"].dt.tz_convert("US/Eastern").dt.tz_localize(None)
+            bars["dt"] = bars["dt"].dt.tz_convert("America/New_York").dt.tz_localize(None)
             bars["time_str"] = bars["dt"].dt.strftime("%H:%M")
             self._agg_cache[key] = bars
             return bars
@@ -86,7 +86,7 @@ class PolygonClient:
 
         bars = pd.DataFrame(data["results"])
         bars["dt"] = pd.to_datetime(bars["t"], unit="ms", utc=True)
-        bars["dt"] = bars["dt"].dt.tz_convert("US/Eastern").dt.tz_localize(None)
+        bars["dt"] = bars["dt"].dt.tz_convert("America/New_York").dt.tz_localize(None)
         bars["time_str"] = bars["dt"].dt.strftime("%H:%M")
 
         self._agg_cache[key] = bars
