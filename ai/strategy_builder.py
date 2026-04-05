@@ -6,12 +6,12 @@ from natural language descriptions.
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime
 
 import anthropic
 import yaml
 
+from ai.utils import parse_response
 from strategies.loader import discover_strategies
 
 
@@ -94,38 +94,6 @@ CRITICAL: Your entire response must be ONLY the JSON object. No introductory tex
 no explanations outside the JSON, no markdown. Start with {{ and end with }}."""
 
 
-def _parse_response(text: str) -> dict:
-    """Extract and parse JSON from Claude's response text."""
-    # Try parsing the whole response first
-    stripped = text.strip()
-    # Strip markdown code fences if the whole thing is wrapped
-    cleaned = re.sub(r"^```(?:json)?\s*", "", stripped)
-    cleaned = re.sub(r"\s*```$", "", cleaned)
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        pass
-
-    # Extract JSON from a code fence within surrounding text
-    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if fence_match:
-        return json.loads(fence_match.group(1))
-
-    # Extract the first top-level JSON object from the text
-    brace_start = text.find("{")
-    if brace_start != -1:
-        depth = 0
-        for i in range(brace_start, len(text)):
-            if text[i] == "{":
-                depth += 1
-            elif text[i] == "}":
-                depth -= 1
-                if depth == 0:
-                    return json.loads(text[brace_start:i + 1])
-
-    raise json.JSONDecodeError("No JSON object found in response", text, 0)
-
-
 def _validate_config(config: dict) -> dict:
     """Validate the parsed config against known constraints."""
     strategies = discover_strategies()
@@ -183,7 +151,7 @@ def generate_config(user_prompt: str, api_key: str) -> dict:
     raw_text = response.content[0].text
 
     try:
-        config = _parse_response(raw_text)
+        config = parse_response(raw_text)
     except json.JSONDecodeError:
         raise ValueError(
             f"Failed to parse AI response as JSON. Raw response:\n{raw_text}"

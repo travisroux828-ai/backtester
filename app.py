@@ -20,6 +20,7 @@ from engine.models import BacktestResult
 from strategies.loader import discover_strategies, load_strategy
 from export.csv_export import result_to_dataframe, export_to_csv
 from ai.strategy_builder import generate_config
+from ai.market_stats import parse_stats_query, execute_stats_query, render_stats_results
 
 # Page config
 st.set_page_config(page_title="Backtester", layout="wide")
@@ -233,8 +234,8 @@ if run_clicked:
         st.stop()
 
 # ─── Display Results ───────────────────────────────────────────────────────
-tab_ai, tab_summary, tab_trades, tab_analysis, tab_export = st.tabs(
-    ["AI Strategy Builder", "Summary", "Trades", "Analysis", "Export"]
+tab_ai, tab_stats, tab_summary, tab_trades, tab_analysis, tab_export = st.tabs(
+    ["AI Strategy Builder", "Market Statistics", "Summary", "Trades", "Analysis", "Export"]
 )
 
 # ─── AI Strategy Builder Tab ──────────────────────────────────────────────
@@ -351,6 +352,81 @@ with tab_ai:
                     st.error(f"Backtest failed: {e}")
                     import traceback
                     st.code(traceback.format_exc())
+
+# ─── Market Statistics Tab ────────────────────────────────────────────────
+with tab_stats:
+    st.subheader("Market Statistics")
+    st.caption("Ask natural language questions about historical market behavior and get statistical answers.")
+
+    # Example questions
+    example_questions = [
+        "If a stock is up 100% at 8am, what are the odds it closes below 20% up?",
+        "What % of stocks that gap up 50%+ premarket close red?",
+        "If volume is 10x average in the first 5 minutes, what happens by noon?",
+    ]
+    st.markdown("**Example questions:**")
+    ex_cols = st.columns(len(example_questions))
+    for i, eq in enumerate(example_questions):
+        if ex_cols[i].button(eq, key=f"example_{i}"):
+            st.session_state["stats_question"] = eq
+
+    stats_question = st.text_area(
+        "Your question:",
+        value=st.session_state.get("stats_question", ""),
+        placeholder="e.g. If a stock gaps up 50%+ premarket, what % close red?",
+        height=80,
+    )
+
+    analyze_clicked = st.button("Analyze", type="primary")
+
+    if analyze_clicked:
+        if not anthropic_api_key:
+            st.error("Please enter your Anthropic API key in the sidebar.")
+        elif not api_key:
+            st.error("Please enter your Polygon API key in the sidebar.")
+        elif not stats_question.strip():
+            st.warning("Please enter a question.")
+        else:
+            # Step 1: Parse question into structured query
+            with st.spinner("Interpreting your question..."):
+                try:
+                    stats_query = parse_stats_query(stats_question, anthropic_api_key)
+                    st.session_state["stats_query"] = stats_query
+                except ValueError as e:
+                    st.error(str(e))
+                    stats_query = None
+
+            if stats_query:
+                st.info(stats_query.get("explanation", stats_query.get("description", "")))
+
+                with st.expander("Query Details"):
+                    st.json(stats_query)
+
+                # Step 2: Execute the query
+                client = PolygonClient(api_key)
+                progress_bar = st.progress(0, text="Starting analysis...")
+                status_text = st.empty()
+
+                def stats_progress(current, total, msg):
+                    pct = min(current / total, 1.0) if total > 0 else 0
+                    progress_bar.progress(pct, text=msg)
+
+                try:
+                    stats_result = execute_stats_query(
+                        stats_query, client, progress_callback=stats_progress
+                    )
+                    st.session_state["stats_result"] = stats_result
+                    progress_bar.empty()
+                    status_text.empty()
+                except Exception as e:
+                    progress_bar.empty()
+                    status_text.empty()
+                    st.error(f"Analysis failed: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+
+    if "stats_result" in st.session_state:
+        render_stats_results(st.session_state["stats_result"])
 
 has_result = "result" in st.session_state
 
