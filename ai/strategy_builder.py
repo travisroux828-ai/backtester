@@ -87,15 +87,43 @@ Return ONLY a JSON object with this exact structure:
 - If the user mentions specific tickers, use "manual" mode
 - If the user describes criteria (price range, market cap, volume, etc.), use "scanner" mode
 - If direction is mentioned (long only, short only), include it in strategy_params
-- Return ONLY the JSON object, no other text"""
+- If the user's request is vague or not about trading, pick the most reasonable strategy and config anyway
+- Put all commentary inside the "explanation" field
+
+CRITICAL: Your entire response must be ONLY the JSON object. No introductory text,
+no explanations outside the JSON, no markdown. Start with {{ and end with }}."""
 
 
 def _parse_response(text: str) -> dict:
     """Extract and parse JSON from Claude's response text."""
-    # Strip markdown code fences if present
-    cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip())
+    # Try parsing the whole response first
+    stripped = text.strip()
+    # Strip markdown code fences if the whole thing is wrapped
+    cleaned = re.sub(r"^```(?:json)?\s*", "", stripped)
     cleaned = re.sub(r"\s*```$", "", cleaned)
-    return json.loads(cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Extract JSON from a code fence within surrounding text
+    fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if fence_match:
+        return json.loads(fence_match.group(1))
+
+    # Extract the first top-level JSON object from the text
+    brace_start = text.find("{")
+    if brace_start != -1:
+        depth = 0
+        for i in range(brace_start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return json.loads(text[brace_start:i + 1])
+
+    raise json.JSONDecodeError("No JSON object found in response", text, 0)
 
 
 def _validate_config(config: dict) -> dict:
