@@ -19,6 +19,7 @@ from engine.backtest import run_backtest, run_backtest_with_scanner
 from engine.models import BacktestResult
 from strategies.loader import discover_strategies, load_strategy
 from export.csv_export import result_to_dataframe, export_to_csv
+from ai.strategy_builder import generate_config
 
 # Page config
 st.set_page_config(page_title="Backtester", layout="wide")
@@ -35,6 +36,17 @@ except (KeyError, FileNotFoundError):
 api_key = st.sidebar.text_input(
     "Polygon API Key",
     value=default_key,
+    type="password",
+)
+
+# Anthropic API Key - for AI Strategy Builder
+try:
+    default_anthropic_key = st.secrets["ANTHROPIC_API_KEY"]
+except (KeyError, FileNotFoundError):
+    default_anthropic_key = ""
+anthropic_api_key = st.sidebar.text_input(
+    "Anthropic API Key",
+    value=default_anthropic_key,
     type="password",
 )
 
@@ -221,203 +233,332 @@ if run_clicked:
         st.stop()
 
 # ─── Display Results ───────────────────────────────────────────────────────
-if "result" not in st.session_state:
-    st.info("Configure your backtest in the sidebar and click **Run Backtest** to get started.")
-    st.stop()
-
-result: BacktestResult = st.session_state["result"]
-trades_df = result_to_dataframe(result)
-
-# Tabs
-tab_summary, tab_trades, tab_analysis, tab_export = st.tabs(
-    ["Summary", "Trades", "Analysis", "Export"]
+tab_ai, tab_summary, tab_trades, tab_analysis, tab_export = st.tabs(
+    ["AI Strategy Builder", "Summary", "Trades", "Analysis", "Export"]
 )
+
+# ─── AI Strategy Builder Tab ──────────────────────────────────────────────
+with tab_ai:
+    st.subheader("AI Strategy Builder")
+    st.caption("Describe your backtest in plain English and Claude will generate the configuration.")
+
+    ai_prompt = st.text_area(
+        "What do you want to backtest?",
+        placeholder="e.g. Backtest a momentum breakout strategy on small-cap stocks under $10 with high volume for the last 2 weeks, long only",
+        height=100,
+    )
+
+    generate_clicked = st.button("Generate Config", type="primary")
+
+    if generate_clicked:
+        if not anthropic_api_key:
+            st.error("Please enter your Anthropic API key in the sidebar.")
+        elif not ai_prompt.strip():
+            st.warning("Please describe what you want to backtest.")
+        else:
+            with st.spinner("Claude is designing your backtest..."):
+                try:
+                    ai_config = generate_config(ai_prompt, anthropic_api_key)
+                    st.session_state["ai_config"] = ai_config
+                except ValueError as e:
+                    st.error(str(e))
+
+    if "ai_config" in st.session_state:
+        ai_config = st.session_state["ai_config"]
+
+        st.info(ai_config.get("explanation", ""))
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown(f"**Strategy:** {ai_config['strategy']}")
+            st.markdown(f"**Ticker Mode:** {ai_config['ticker_mode']}")
+            if ai_config.get("tickers"):
+                st.markdown(f"**Tickers:** {', '.join(ai_config['tickers'])}")
+            st.markdown(f"**Dates:** {ai_config['start_date']} to {ai_config['end_date']}")
+            st.markdown(f"**Account Size:** ${ai_config['account_size']:,}")
+
+        with col_b:
+            if ai_config.get("scanner_filters"):
+                st.markdown("**Scanner Filters:**")
+                for k, v in ai_config["scanner_filters"].items():
+                    st.markdown(f"- {k}: {v}")
+
+        # Editable strategy params
+        params_yaml = yaml.dump(ai_config.get("strategy_params", {}), default_flow_style=False, sort_keys=False)
+        edited_ai_params = st.text_area(
+            "Strategy Parameters (edit if needed)",
+            value=params_yaml,
+            height=150,
+        )
+
+        if st.button("Run This Backtest", type="primary"):
+            if not api_key:
+                st.error("Please enter your Polygon API key in the sidebar to run the backtest.")
+            else:
+                try:
+                    config_override = yaml.safe_load(edited_ai_params)
+                    if not isinstance(config_override, dict):
+                        config_override = {}
+                except yaml.YAMLError:
+                    st.error("Invalid YAML in strategy parameters.")
+                    st.stop()
+
+                try:
+                    strategy = load_strategy(ai_config["strategy"], config_override)
+                except Exception as e:
+                    st.error(f"Failed to load strategy: {e}")
+                    st.stop()
+
+                client = PolygonClient(api_key)
+                progress_bar = st.progress(0, text="Starting...")
+
+                def ai_update_progress(current, total, msg):
+                    pct = min(current / total, 1.0) if total > 0 else 0
+                    progress_bar.progress(pct, text=f"Processing {msg}...")
+
+                try:
+                    if ai_config["ticker_mode"] == "manual":
+                        tickers_list = ai_config.get("tickers", [])
+                        if not tickers_list:
+                            st.error("No tickers specified.")
+                            st.stop()
+                        ai_result = run_backtest(
+                            strategy=strategy,
+                            tickers=tickers_list,
+                            start_date=ai_config["start_date"],
+                            end_date=ai_config["end_date"],
+                            account_size=ai_config["account_size"],
+                            polygon_client=client,
+                            progress_callback=ai_update_progress,
+                        )
+                    else:
+                        filters = ai_config.get("scanner_filters", {})
+                        ai_result = run_backtest_with_scanner(
+                            strategy=strategy,
+                            start_date=ai_config["start_date"],
+                            end_date=ai_config["end_date"],
+                            account_size=ai_config["account_size"],
+                            polygon_client=client,
+                            scanner_filters=filters,
+                            progress_callback=ai_update_progress,
+                        )
+
+                    st.session_state["result"] = ai_result
+                    progress_bar.empty()
+                    st.rerun()
+                except Exception as e:
+                    progress_bar.empty()
+                    st.error(f"Backtest failed: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+
+has_result = "result" in st.session_state
 
 # ─── Summary Tab ───────────────────────────────────────────────────────────
 with tab_summary:
-    if not result.trades:
-        st.warning("No trades were generated. Try adjusting strategy parameters, scanner filters, or date range.")
+    if not has_result:
+        st.info("Configure your backtest in the sidebar and click **Run Backtest**, or use the **AI Strategy Builder** tab.")
     else:
-        # Show scanned tickers info if available
-        scanned_info = result.config.get("_scanned_tickers")
-        if scanned_info:
-            unique_tickers = set()
-            for day_tickers in scanned_info.values():
-                unique_tickers.update(day_tickers)
-            st.caption(
-                f"Scanner found **{len(unique_tickers)}** unique tickers "
-                f"across **{len(scanned_info)}** trading days"
+        result: BacktestResult = st.session_state["result"]
+        trades_df = result_to_dataframe(result)
+        if not result.trades:
+            st.warning("No trades were generated. Try adjusting strategy parameters, scanner filters, or date range.")
+        else:
+            # Show scanned tickers info if available
+            scanned_info = result.config.get("_scanned_tickers")
+            if scanned_info:
+                unique_tickers = set()
+                for day_tickers in scanned_info.values():
+                    unique_tickers.update(day_tickers)
+                st.caption(
+                    f"Scanner found **{len(unique_tickers)}** unique tickers "
+                    f"across **{len(scanned_info)}** trading days"
+                )
+
+            # Metric cards
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Total P&L", f"${result.total_pnl:,.2f}")
+            col2.metric("Win Rate", f"{result.win_rate:.1f}%")
+            col3.metric("Profit Factor", f"{result.profit_factor:.2f}")
+            col4.metric("Max Drawdown", f"{result.max_drawdown:.1f}%")
+
+            col5, col6, col7, col8 = st.columns(4)
+            col5.metric("Total Trades", len(result.trades))
+            col6.metric("Avg Winner", f"${result.avg_winner:,.2f}")
+            col7.metric("Avg Loser", f"${result.avg_loser:,.2f}")
+            winners = sum(1 for t in result.trades if t.is_winner)
+            losers = len(result.trades) - winners
+            col8.metric("W / L", f"{winners} / {losers}")
+
+            # Equity curve
+            st.subheader("Equity Curve")
+            eq_fig = go.Figure()
+            eq_fig.add_trace(go.Scatter(
+                y=result.equity_curve,
+                mode="lines",
+                name="Equity",
+                line=dict(color="#2196F3", width=2),
+            ))
+            eq_fig.update_layout(
+                height=350,
+                margin=dict(l=0, r=0, t=10, b=0),
+                yaxis_title="Account Value ($)",
+                xaxis_title="Trade #",
             )
+            st.plotly_chart(eq_fig, use_container_width=True)
 
-        # Metric cards
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Total P&L", f"${result.total_pnl:,.2f}")
-        col2.metric("Win Rate", f"{result.win_rate:.1f}%")
-        col3.metric("Profit Factor", f"{result.profit_factor:.2f}")
-        col4.metric("Max Drawdown", f"{result.max_drawdown:.1f}%")
-
-        col5, col6, col7, col8 = st.columns(4)
-        col5.metric("Total Trades", len(result.trades))
-        col6.metric("Avg Winner", f"${result.avg_winner:,.2f}")
-        col7.metric("Avg Loser", f"${result.avg_loser:,.2f}")
-        winners = sum(1 for t in result.trades if t.is_winner)
-        losers = len(result.trades) - winners
-        col8.metric("W / L", f"{winners} / {losers}")
-
-        # Equity curve
-        st.subheader("Equity Curve")
-        eq_fig = go.Figure()
-        eq_fig.add_trace(go.Scatter(
-            y=result.equity_curve,
-            mode="lines",
-            name="Equity",
-            line=dict(color="#2196F3", width=2),
-        ))
-        eq_fig.update_layout(
-            height=350,
-            margin=dict(l=0, r=0, t=10, b=0),
-            yaxis_title="Account Value ($)",
-            xaxis_title="Trade #",
-        )
-        st.plotly_chart(eq_fig, use_container_width=True)
-
-        # Daily P&L
-        st.subheader("Daily P&L")
-        daily_pnl = trades_df.groupby("date")["gross_pnl"].sum().reset_index()
-        colors = ["#4CAF50" if x > 0 else "#F44336" for x in daily_pnl["gross_pnl"]]
-        daily_fig = go.Figure(go.Bar(
-            x=daily_pnl["date"],
-            y=daily_pnl["gross_pnl"],
-            marker_color=colors,
-        ))
-        daily_fig.update_layout(
-            height=300,
-            margin=dict(l=0, r=0, t=10, b=0),
-            yaxis_title="P&L ($)",
-        )
-        st.plotly_chart(daily_fig, use_container_width=True)
+            # Daily P&L
+            st.subheader("Daily P&L")
+            daily_pnl = trades_df.groupby("date")["gross_pnl"].sum().reset_index()
+            colors = ["#4CAF50" if x > 0 else "#F44336" for x in daily_pnl["gross_pnl"]]
+            daily_fig = go.Figure(go.Bar(
+                x=daily_pnl["date"],
+                y=daily_pnl["gross_pnl"],
+                marker_color=colors,
+            ))
+            daily_fig.update_layout(
+                height=300,
+                margin=dict(l=0, r=0, t=10, b=0),
+                yaxis_title="P&L ($)",
+            )
+            st.plotly_chart(daily_fig, use_container_width=True)
 
 # ─── Trades Tab ────────────────────────────────────────────────────────────
 with tab_trades:
-    if result.trades:
-        st.subheader(f"Trade Log ({len(result.trades)} trades)")
-
-        # Display columns
-        display_cols = [
-            "date", "ticker", "direction", "entry_time", "exit_time",
-            "entry_price", "exit_price", "shares", "gross_pnl",
-            "signal_reason", "exit_reason",
-        ]
-        display_df = trades_df[display_cols].copy()
-
-        # Style P&L column
-        st.dataframe(
-            display_df.style.applymap(
-                lambda v: "color: #4CAF50" if isinstance(v, (int, float)) and v > 0
-                else ("color: #F44336" if isinstance(v, (int, float)) and v < 0 else ""),
-                subset=["gross_pnl"],
-            ),
-            use_container_width=True,
-            height=500,
-        )
+    if not has_result:
+        st.info("Run a backtest to see trades.")
     else:
-        st.warning("No trades to display.")
+        result = st.session_state["result"]
+        trades_df = result_to_dataframe(result)
+        if result.trades:
+            st.subheader(f"Trade Log ({len(result.trades)} trades)")
+
+            # Display columns
+            display_cols = [
+                "date", "ticker", "direction", "entry_time", "exit_time",
+                "entry_price", "exit_price", "shares", "gross_pnl",
+                "signal_reason", "exit_reason",
+            ]
+            display_df = trades_df[display_cols].copy()
+
+            # Style P&L column
+            st.dataframe(
+                display_df.style.applymap(
+                    lambda v: "color: #4CAF50" if isinstance(v, (int, float)) and v > 0
+                    else ("color: #F44336" if isinstance(v, (int, float)) and v < 0 else ""),
+                    subset=["gross_pnl"],
+                ),
+                use_container_width=True,
+                height=500,
+            )
+        else:
+            st.warning("No trades to display.")
 
 # ─── Analysis Tab ──────────────────────────────────────────────────────────
 with tab_analysis:
-    if result.trades:
-        col_left, col_right = st.columns(2)
-
-        with col_left:
-            # P&L by hour
-            st.subheader("P&L by Entry Hour")
-            trades_df["entry_hour"] = trades_df["entry_time"].str[:2].astype(int)
-            hourly = trades_df.groupby("entry_hour")["gross_pnl"].sum().reset_index()
-            colors_h = ["#4CAF50" if x > 0 else "#F44336" for x in hourly["gross_pnl"]]
-            hour_fig = go.Figure(go.Bar(
-                x=hourly["entry_hour"],
-                y=hourly["gross_pnl"],
-                marker_color=colors_h,
-            ))
-            hour_fig.update_layout(
-                height=300, margin=dict(l=0, r=0, t=10, b=0),
-                xaxis_title="Hour (ET)", yaxis_title="P&L ($)",
-            )
-            st.plotly_chart(hour_fig, use_container_width=True)
-
-        with col_right:
-            # P&L by ticker
-            st.subheader("P&L by Ticker")
-            by_ticker = trades_df.groupby("ticker")["gross_pnl"].sum().reset_index()
-            by_ticker = by_ticker.sort_values("gross_pnl", ascending=True)
-            colors_t = ["#4CAF50" if x > 0 else "#F44336" for x in by_ticker["gross_pnl"]]
-            ticker_fig = go.Figure(go.Bar(
-                x=by_ticker["gross_pnl"],
-                y=by_ticker["ticker"],
-                orientation="h",
-                marker_color=colors_t,
-            ))
-            ticker_fig.update_layout(
-                height=max(300, len(by_ticker) * 25), margin=dict(l=0, r=0, t=10, b=0),
-                xaxis_title="P&L ($)",
-            )
-            st.plotly_chart(ticker_fig, use_container_width=True)
-
-        col_left2, col_right2 = st.columns(2)
-
-        with col_left2:
-            # Win rate by direction
-            st.subheader("Win Rate by Direction")
-            for direction in trades_df["direction"].unique():
-                dir_trades = trades_df[trades_df["direction"] == direction]
-                wins = (dir_trades["gross_pnl"] > 0).sum()
-                total = len(dir_trades)
-                wr = wins / total * 100 if total > 0 else 0
-                st.metric(
-                    f"{direction.title()} ({total} trades)",
-                    f"{wr:.1f}%",
-                )
-
-        with col_right2:
-            # P&L distribution
-            st.subheader("P&L Distribution")
-            dist_fig = go.Figure(go.Histogram(
-                x=trades_df["gross_pnl"],
-                nbinsx=20,
-                marker_color="#2196F3",
-            ))
-            dist_fig.update_layout(
-                height=300, margin=dict(l=0, r=0, t=10, b=0),
-                xaxis_title="P&L ($)", yaxis_title="Count",
-            )
-            st.plotly_chart(dist_fig, use_container_width=True)
-
-        # Exit reason breakdown
-        st.subheader("Exit Reasons")
-        exit_counts = trades_df["exit_reason"].value_counts().reset_index()
-        exit_counts.columns = ["Exit Reason", "Count"]
-        st.dataframe(exit_counts, use_container_width=True, hide_index=True)
-
+    if not has_result:
+        st.info("Run a backtest to see analysis.")
     else:
-        st.warning("No trades to analyze.")
+        result = st.session_state["result"]
+        trades_df = result_to_dataframe(result)
+        if result.trades:
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                # P&L by hour
+                st.subheader("P&L by Entry Hour")
+                trades_df["entry_hour"] = trades_df["entry_time"].str[:2].astype(int)
+                hourly = trades_df.groupby("entry_hour")["gross_pnl"].sum().reset_index()
+                colors_h = ["#4CAF50" if x > 0 else "#F44336" for x in hourly["gross_pnl"]]
+                hour_fig = go.Figure(go.Bar(
+                    x=hourly["entry_hour"],
+                    y=hourly["gross_pnl"],
+                    marker_color=colors_h,
+                ))
+                hour_fig.update_layout(
+                    height=300, margin=dict(l=0, r=0, t=10, b=0),
+                    xaxis_title="Hour (ET)", yaxis_title="P&L ($)",
+                )
+                st.plotly_chart(hour_fig, use_container_width=True)
+
+            with col_right:
+                # P&L by ticker
+                st.subheader("P&L by Ticker")
+                by_ticker = trades_df.groupby("ticker")["gross_pnl"].sum().reset_index()
+                by_ticker = by_ticker.sort_values("gross_pnl", ascending=True)
+                colors_t = ["#4CAF50" if x > 0 else "#F44336" for x in by_ticker["gross_pnl"]]
+                ticker_fig = go.Figure(go.Bar(
+                    x=by_ticker["gross_pnl"],
+                    y=by_ticker["ticker"],
+                    orientation="h",
+                    marker_color=colors_t,
+                ))
+                ticker_fig.update_layout(
+                    height=max(300, len(by_ticker) * 25), margin=dict(l=0, r=0, t=10, b=0),
+                    xaxis_title="P&L ($)",
+                )
+                st.plotly_chart(ticker_fig, use_container_width=True)
+
+            col_left2, col_right2 = st.columns(2)
+
+            with col_left2:
+                # Win rate by direction
+                st.subheader("Win Rate by Direction")
+                for direction in trades_df["direction"].unique():
+                    dir_trades = trades_df[trades_df["direction"] == direction]
+                    wins = (dir_trades["gross_pnl"] > 0).sum()
+                    total = len(dir_trades)
+                    wr = wins / total * 100 if total > 0 else 0
+                    st.metric(
+                        f"{direction.title()} ({total} trades)",
+                        f"{wr:.1f}%",
+                    )
+
+            with col_right2:
+                # P&L distribution
+                st.subheader("P&L Distribution")
+                dist_fig = go.Figure(go.Histogram(
+                    x=trades_df["gross_pnl"],
+                    nbinsx=20,
+                    marker_color="#2196F3",
+                ))
+                dist_fig.update_layout(
+                    height=300, margin=dict(l=0, r=0, t=10, b=0),
+                    xaxis_title="P&L ($)", yaxis_title="Count",
+                )
+                st.plotly_chart(dist_fig, use_container_width=True)
+
+            # Exit reason breakdown
+            st.subheader("Exit Reasons")
+            exit_counts = trades_df["exit_reason"].value_counts().reset_index()
+            exit_counts.columns = ["Exit Reason", "Count"]
+            st.dataframe(exit_counts, use_container_width=True, hide_index=True)
+
+        else:
+            st.warning("No trades to analyze.")
 
 # ─── Export Tab ────────────────────────────────────────────────────────────
 with tab_export:
-    if result.trades:
-        st.subheader("CSV Export")
-        st.caption("Download trade data for review in TradingView or spreadsheets.")
-
-        # Preview
-        st.dataframe(trades_df, use_container_width=True, height=300)
-
-        # Download
-        csv_data = export_to_csv(result)
-        st.download_button(
-            label="Download CSV",
-            data=csv_data,
-            file_name=f"backtest_{result.start_date}_{result.end_date}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+    if not has_result:
+        st.info("Run a backtest to export results.")
     else:
-        st.warning("No trades to export.")
+        result = st.session_state["result"]
+        trades_df = result_to_dataframe(result)
+        if result.trades:
+            st.subheader("CSV Export")
+            st.caption("Download trade data for review in TradingView or spreadsheets.")
+
+            # Preview
+            st.dataframe(trades_df, use_container_width=True, height=300)
+
+            # Download
+            csv_data = export_to_csv(result)
+            st.download_button(
+                label="Download CSV",
+                data=csv_data,
+                file_name=f"backtest_{result.start_date}_{result.end_date}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        else:
+            st.warning("No trades to export.")

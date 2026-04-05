@@ -4,3 +4,4 @@ requests
 streamlit
 plotly
 pyyaml
+anthropic
