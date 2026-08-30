@@ -36,6 +36,12 @@ A symbol must satisfy **every** stage to appear in the MAT window:
 4. **Advanced Queries** — logical expressions; all AQ conditions must pass.
 5. **Results Preferences** — presentation only (flash, colors); does not filter.
 
+## Related
+
+- **SHEL DataGateway API** — [`../shel-datagateway/`](../shel-datagateway/README.md).
+  Trade- and quote-level market data. Relevant here because `nbbo` can detect
+  guy high/low directly, which MAT structurally cannot.
+
 ## Screenshots and version drift
 
 Each page carries a **Panel layout (observed UI)** section transcribed from

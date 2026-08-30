@@ -194,6 +194,11 @@ is why the one-filter, two-color build above is the better default.
 
 Read these before trusting the output.
 
+> **These limitations apply to MAT itself.** The SHEL DataGateway API
+> ([`../shel-datagateway/`](../shel-datagateway/README.md)) provides NBBO and can
+> address several of them outside MAT — see
+> [Building this outside MAT](#building-this-outside-mat) below.
+
 **1. MAT sees prints, not quotes.** Both setups are defined by book behavior —
 sweeping through levels, and resting size away from the inside. MAT's Price Moves
 engine works on trades. Every filter here detects the *price footprint* the
@@ -216,16 +221,74 @@ warrant a hard exclusion you'll have to apply manually.
 **4. Thresholds are analytic, not empirical.** The ladder interpolates two anchor
 points. It has never been tested against a print tape.
 
+## Building this outside MAT
+
+The SHEL DataGateway API changes what's feasible. See
+[`../shel-datagateway/README.md`](../shel-datagateway/README.md).
+
+### Guy high / guy low becomes directly detectable
+
+Limitation 2 above — MAT's structural blind spot — exists because MAT reads
+prints. The `nbbo` subscription reads the quote, which is exactly where the setup
+lives. A resting bid above the recent market is visible **before** anyone trades
+against it, which is the moment your edge actually exists.
+
+Sketch of the detector, from `nbbo` messages alone:
+
+```
+guy_high  when  bid          > recent_reference + threshold(price)
+           and  bid-size     >= size_floor
+           and  the condition holds for >= N milliseconds
+```
+
+with `guy_low` the mirror on `ask-price` / `ask` (mind the asymmetric field
+names — see the gotcha in `../shel-datagateway/response-messages.md`).
+
+`recent_reference` wants to be a short trailing VWAP or mid — `vwma-1s` is
+available as a subscription, or compute it from the trade stream. The
+`threshold(price)` function is the √price ladder already derived above, and
+`hist-stat`'s `20D` high/low gives the per-symbol volatility normalization for
+free on every subscription.
+
+This is a genuinely better instrument than the MAT proxy: it fires on the
+resting order rather than on the prints that follow it.
+
+### Sprays get a real definition
+
+With trades carrying `mkt` and `flags`, a spray can be defined as what it
+actually is — one aggressor crossing multiple price levels on the lit book —
+rather than inferred from net displacement:
+
+- exclude `Drk` and `OffMkt*` prints (they never touched the displayed book)
+- exclude `Odd` (already excluded by default) and `OOS`
+- require **N distinct price levels** in monotonic order inside the window
+- require the aggregate size across those prints to clear the notional floor
+
+The distinct-levels requirement is the piece MAT cannot express at all, and it is
+the difference between "price moved" and "someone swept the book".
+
+### The constraint that should drive scheduling
+
+**`nbbo` is not available historically.** Trades go back; quotes do not.
+
+So: sprays can be backtested today from historical trades, but **guy high/low can
+only ever be studied on quote data you have already recorded.** Every day that
+passes without a recorder running is a day permanently unavailable for this
+research. If the guy setup matters, standing up an NBBO recorder is the
+time-sensitive task here — ahead of any modeling work, which can be done later on
+whatever has accumulated.
+
 ## Calibration
 
 The repo's scanner (`data/scanner.py`) works off Polygon **grouped daily bars**,
 so it cannot validate any of this — these are sub-second, trade-level events.
-Calibrating properly needs tick data (Polygon `/v3/trades`, which
-`data/polygon_client.py` could be extended to reach).
+DataGateway's historical `trade` subscription supplies exactly what's needed,
+with nanosecond timestamps.
 
 A defensible calibration loop:
 
-1. Pull raw trades for ~20 symbols spanning the price ladder, several sessions.
+1. Pull raw trades for ~20 symbols spanning the price ladder, several sessions,
+   via `request_data(..., ['trade'])`. Filter out `Drk`, `OffMkt*`, and `OOS`.
 2. Resample to 1s; compute rolling 2s displacement and the volume behind it.
 3. Histogram displacement per price bucket. The threshold worth using is a *tail
    quantile* (~99.5th percentile of 2s moves), not a fixed cent value — that

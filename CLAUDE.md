@@ -23,3 +23,10 @@ Python/Streamlit backtester. Entry points: `app.py` (Streamlit UI) and
   validated) MAT filter design for two desk setups: sprays through the book, and
   guy high / guy low. Contains the square-root price ladder used to size
   "noticeable" moves, and a calibration plan against tick data.
+- **SHEL DataGateway market data API** — `docs/shel-datagateway/`. Trillium's
+  trade/quote-level market data API and the TF-Server binary framing protocol
+  beneath it: request shapes, subscriptions, every response message, the Python
+  SDK, and a list of spec-vs-observed gotchas. Start at
+  `docs/shel-datagateway/README.md`. Consult this for any work touching live or
+  historical market data ingestion. Key constraint: NBBO is live-only, never
+  historical.
