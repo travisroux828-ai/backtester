@@ -33,26 +33,36 @@ Two request verbs, both taking a `symbol`, a `subscriptions` array and a `token`
 
 The Python SDK hides all framing; callbacks receive parsed dicts.
 
-## What this unlocks
+## Designs built on this API
 
-This API is **trade-and-quote level**, which is a different class of data from
-the daily bars in `data/scanner.py`. Relevant to the MAT filter work in
-[`../mat-filter-settings/strategy-spray-and-guy-filters.md`](../mat-filter-settings/strategy-spray-and-guy-filters.md):
-
-| Need | Status |
+| Doc | Covers |
 | --- | --- |
-| Calibrate spray thresholds on real prints | **Now possible** — historical `trade` with nanosecond timestamps |
-| Detect guy high/low from the book | **Now possible live** — `nbbo` gives best bid/ask and sizes |
-| Backtest guy high/low | **Not possible** — `nbbo` has no history |
-| Per-symbol volatility normalization | **Free** — `hist-stat` 20D high/low arrives on every subscription |
+| [`detector-spray-and-guy.md`](detector-spray-and-guy.md) | Standalone detectors for sprays (`trade`) and guy high/low (`nbbo`) |
+
+> **This API and the platform's MAT filters are separate systems.** MAT is a
+> filter engine configured through the platform UI; DataGateway is a market data
+> feed you write your own client against. There is no data path between them —
+> nothing computed from this feed can be fed into a MAT filter, and MAT cannot
+> consume anything a DataGateway client produces. Anything built here is a
+> separate build from anything built in MAT, even when both target the same
+> trading setup.
+
+## What this API gives you
+
+| Capability | Availability |
+| --- | --- |
+| Historical prints, nanosecond timestamps, with venue and condition flags | `trade`, any date range |
+| Live quote — best bid/ask and sizes | `nbbo`, **live only** |
+| Historical quote | **Not available at all** |
+| Per-symbol volatility context (10D/20D/50D/200D/52Wk high, low, SMA, pct-chg) | `hist-stat`, free on every subscription |
+| Bars and VWMA at intervals from 1s to 1day | `bar-*`, `vwma-*` |
 
 ### The one constraint that drives planning
 
-**NBBO is live-only.** Trades go back historically; quotes do not. So quote-driven
-research can only be done on data you have already recorded. If guy high/low
-detection matters, **start recording NBBO now** — every day not recorded is a day
-that can never be studied. This is the highest-priority action item arising from
-these docs.
+**NBBO is live-only.** Trades go back historically; quotes do not. Quote-driven
+research can only ever be done on data already recorded. If anything you want
+depends on the book, **start recording now** — every day not recorded is a day
+that can never be studied.
 
 ## Gotchas worth knowing before you write a parser
 

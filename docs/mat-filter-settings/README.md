@@ -19,7 +19,7 @@ referenced offline and by Claude during development.
 
 | Doc | File |
 | --- | --- |
-| Filter design: sprays and guy high/low | [`strategy-spray-and-guy-filters.md`](strategy-spray-and-guy-filters.md) |
+| MAT filter design: sprays and guy high/low | [`strategy-spray-and-guy-filters.md`](strategy-spray-and-guy-filters.md) |
 
 ## Quick model of how a MAT filter evaluates
 
@@ -36,11 +36,15 @@ A symbol must satisfy **every** stage to appear in the MAT window:
 4. **Advanced Queries** — logical expressions; all AQ conditions must pass.
 5. **Results Preferences** — presentation only (flash, colors); does not filter.
 
-## Related
+## Related, but separate
 
+- **Move sizing** — [`../noticeable-move-ladder.md`](../noticeable-move-ladder.md).
+  The √price threshold ladder. System-independent.
 - **SHEL DataGateway API** — [`../shel-datagateway/`](../shel-datagateway/README.md).
-  Trade- and quote-level market data. Relevant here because `nbbo` can detect
-  guy high/low directly, which MAT structurally cannot.
+  A *different system*: a market data feed you write your own client against, not
+  an input to or extension of MAT. There is no data path between the two. It is
+  listed here only because the same trading setups can be approached either way,
+  as separate builds.
 
 ## Screenshots and version drift
 
