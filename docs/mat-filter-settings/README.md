@@ -15,6 +15,12 @@ referenced offline and by Claude during development.
 | Input Advanced Queries (MAT) | [`input-advanced-queries.md`](input-advanced-queries.md) |
 | Set Results Preferences (MAT) | [`set-results-preferences.md`](set-results-preferences.md) |
 
+### Working designs (not KB content)
+
+| Doc | File |
+| --- | --- |
+| Filter design: sprays and guy high/low | [`strategy-spray-and-guy-filters.md`](strategy-spray-and-guy-filters.md) |
+
 ## Quick model of how a MAT filter evaluates
 
 A symbol must satisfy **every** stage to appear in the MAT window:

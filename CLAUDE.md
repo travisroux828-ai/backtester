@@ -18,3 +18,8 @@ Python/Streamlit backtester. Entry points: `app.py` (Streamlit UI) and
   evaluation order and shared input conventions. Consult this whenever work
   touches MAT filter semantics, scanner/filter modeling, or advanced-query
   expression syntax.
+- **Spray / guy-high-low filter design** —
+  `docs/mat-filter-settings/strategy-spray-and-guy-filters.md`. Working (not yet
+  validated) MAT filter design for two desk setups: sprays through the book, and
+  guy high / guy low. Contains the square-root price ladder used to size
+  "noticeable" moves, and a calibration plan against tick data.
