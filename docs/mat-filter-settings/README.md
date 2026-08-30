@@ -30,6 +30,25 @@ A symbol must satisfy **every** stage to appear in the MAT window:
 4. **Advanced Queries** — logical expressions; all AQ conditions must pass.
 5. **Results Preferences** — presentation only (flash, colors); does not filter.
 
+## Screenshots and version drift
+
+Each page carries a **Panel layout (observed UI)** section transcribed from
+screenshots of the running application (captured 2026-08-30) — exact field
+labels, control types, defaults, and layout. The image files themselves are not
+in this repo; the transcriptions stand in for them. Drop the images into
+`images/` and link them from the layout sections if you want the visuals too.
+
+Two places where the observed UI disagrees with the KB text, both flagged inline
+on their pages:
+
+| Page | KB says | Screenshot shows |
+| --- | --- | --- |
+| Add Price Moves | `Filter Out Prints` dropdown with None / Odd Lots / Less Than 100 | a plain `Odd Lots` On/Off toggle |
+| Define Symbol Set | a `Mute After Count` field | no such field in the panel |
+
+Both look like the KB documenting a newer build than the screenshots. Confirm
+against your target build before relying on either.
+
 ## Shared input conventions
 
 - **Volume / size inputs:** `100`; `1,000` or `1K`; `1,000,000` or `1M`;

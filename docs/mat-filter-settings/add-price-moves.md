@@ -28,6 +28,11 @@ greater than 110% of their 20-day average volume.
 
 ## Filter Out Prints
 
+> **Version note:** the live UI screenshot on hand shows this control as a
+> simple **Odd Lots** On/Off toggle, not a three-option dropdown. The dropdown
+> described below is the newer form documented in the KB. Confirm which build
+> you are targeting before modeling this field.
+
 The Filter Out Prints dropdown excludes certain types of prints from the
 filter's results. Three options:
 
@@ -103,3 +108,35 @@ If Price Move 1 is duplicated:
 
 To delete a Price Move, expand a Price Move and click the trashcan icon at the
 bottom-right.
+
+## Panel layout (observed UI)
+
+Collapsible section titled **Add Price Moves** with a chevron at the right.
+Top-level fields, each label at left and control at right:
+
+| Control | Type | Observed default |
+| --- | --- | --- |
+| `Time Frame (in seconds):` | text box | `10` |
+| `Minimum Volume Percent` | toggle + text box | `Off`, `0` |
+| `Odd Lots:` | toggle | `Off` |
+| `Covered Ranges:` | horizontal bar, `MIN` … `MAX` | blue = covered, red/orange = overlap |
+
+Below Covered Ranges, four column headers span the range list:
+**Price Range · Price Moves · Move Volume · 20d Volume**.
+
+Each range renders as a collapsible card (`Range 1`, `Range 2`, …) with a
+chevron. Expanded, a card shows stacked rows:
+
+| Row | Inputs | Example values |
+| --- | --- | --- |
+| `Price Range:` | two boxes (min, max) | `0.01`, `1.00` |
+| `Primary Move:` | one box (right-aligned) | `$0.20` |
+| `Secondary Move:` | one box (right-aligned) | `$0.05` |
+| `Move Volume:` | two boxes | placeholders `MIN` / `MAX` |
+| `20 Day Volume:` | two boxes | placeholders `MIN` / `MAX` |
+
+Bottom-right of an expanded card: a blue **copy** icon and a red **trashcan**
+icon. A round blue **+** floating button sits at the bottom-right of the panel.
+
+Note the asymmetry: Price Range, Move Volume, and 20 Day Volume take min/max
+pairs; Primary and Secondary Move each take a single threshold value.

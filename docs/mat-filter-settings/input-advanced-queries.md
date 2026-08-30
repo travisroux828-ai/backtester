@@ -81,3 +81,20 @@ criteria.
 | `volume_frame(60, 0)` | Volume over the previous minute (60s window, 0s offset) |
 | `price_range_sma(20)` | 20-day average daily price range |
 | `pctChng(open,last)` | Percent change from the open to the last price |
+
+## Panel layout (observed UI)
+
+Collapsible section titled **Input Advanced Queries** with a chevron at the
+right. Two stacked areas:
+
+- **Top** — a large empty multi-line text area: the query editor itself, where
+  the composed expression lives and where errors are highlighted in red.
+- **Bottom row**, left to right:
+  1. a narrow search box with a magnifier icon (metric search — step 1),
+  2. a wide `Equivalent Expression` field (populated by the selected metric),
+  3. a round blue **up-arrow** button that inserts the equivalent expression
+     into the query editor above.
+
+So the flow reads bottom-to-top: search a metric in the bottom-left, read its
+generated expression in the middle, arrow it up into the editor, then add
+comparison and Boolean operators by hand in the editor.

@@ -121,3 +121,21 @@ Select the Condition and click **Add**.
 
 To set the totality of available symbols, input the Min and Max values or adjust
 the range using the slider. Click **Apply** to save.
+
+## Panel layout (observed UI)
+
+Collapsible section titled **Conditions** with a chevron at the right. Each
+added condition renders as its own card. Observed card (`Market Cap`):
+
+- Condition name in bold at the top-left.
+- Top-right: a `MIN` box, the word `to`, and a `MAX` box.
+- Body: a histogram of the metric's distribution across the universe, with a
+  two-handle range slider overlaid along its baseline. Handles sit at the far
+  left and far right when unconstrained.
+- Below the slider's left handle: a live matching count, e.g. `8107 Symbols`.
+- Bottom-right: a red **trashcan** icon to remove the condition.
+
+The symbol count updates with the range, so it reads as a live preview of how
+selective the condition is. The histogram is heavily right-skewed for Market Cap
+(a tall leftmost bar with a long thin tail), which is expected for that metric
+and worth remembering when picking bucket scales.

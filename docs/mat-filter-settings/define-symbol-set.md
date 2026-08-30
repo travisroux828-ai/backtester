@@ -38,6 +38,10 @@ Click the **Exchange** dropdown menu and select the Exchanges to include. Click
 Click the **Product Type** dropdown menu and select the Products to include.
 Click **Apply** to save.
 
+> **Version note:** the live UI screenshot on hand does not show a
+> **Mute After Count** field in this panel. The KB page dates it to January
+> 2026, so it is likely newer than the screenshot. Verify against your build.
+
 ## Mute After Count
 
 To limit the number of times a symbol appears in the MAT results window, enter
@@ -94,3 +98,29 @@ Click the **Muted** tab, input the symbol in the **Symbols** text box, press
 
 Click on the symbol and select **Remove Selected** or **Remove All**. Confirm
 the deletion and click **Apply** to save.
+
+## Panel layout (observed UI)
+
+Collapsible section titled **Define Symbol Set** with a chevron at the right.
+
+Two dropdowns at the top, label left / control right, each summarizing its
+selection count rather than listing values:
+
+| Control | Type | Observed state |
+| --- | --- | --- |
+| `Exchanges:` | multi-select dropdown | `12 Items Selected` |
+| `Product Type:` | multi-select dropdown | `11 Items Selected` |
+
+Below them, three tabs: **Include · Exclude · Muted** (Include active by
+default). The tab body is split into two columns:
+
+- **Left column** — `List:` with a `Select List(s)` dropdown, and `Symbols:`
+  with an `Enter symbol to include` text box.
+- **Right column** — a `Search Included` search box above a table with columns
+  **Symbol/List** and **Date Added**.
+
+The search box placeholder tracks the active tab (`Search Included` /
+`Search Excluded`). A round blue **+** floating button sits at the bottom-right.
+
+The `Date Added` column means include/exclude entries carry a timestamp — worth
+preserving if you model this state.
